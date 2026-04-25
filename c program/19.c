@@ -3,107 +3,83 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-int *buffer;
+int buffer[10];
 int size;
-
 int in = 0, out = 0;
+int mutex = 1;
+int empty;
+int full = 0;
 
-// Semaphores
-int buffer_access = 1; // binary semaphore
-int empty;             // counting semaphore
-int full = 0;          // counting semaphore
+void sem_wait(int *sem) { (*sem)--; }
+void sem_signal(int *sem) { (*sem)++; }
 
-// wait operation
-void down(int *s) { (*s)--; }
-
-// signal operation
-void up(int *s) { (*s)++; }
-
-// display semaphore values
-void display() {
-  printf("Empty = %d, Full = %d, Buffer_Access = %d\n", empty, full,
-         buffer_access);
-}
-
-// Producer
-void producer() {
-  int item;
-
+void producer(int n) {
   if (empty == 0) {
-    printf("Producer BLOCKED (Buffer Full)\n");
-    display();
+    printf("\nBuffer FULL! Producer BLOCKED\n");
     return;
   }
 
-  item = rand() % 100;
+  sem_wait(&empty);
+  sem_wait(&mutex);
 
-  down(&empty);
-  down(&buffer_access);
-
-  buffer[in] = item;
-  printf("Produced: %d at position %d\n", item, in);
+  buffer[in] = n;
+  printf("\nProduced: %d at position %d", n, in);
   in = (in + 1) % size;
 
-  up(&buffer_access);
-  up(&full);
+  sem_signal(&mutex);
+  sem_signal(&full);
 
-  display();
+  printf("\nBuffer status -> full=%d, empty=%d\n", full, empty);
 }
 
-// Consumer
 void consumer() {
-  int item;
-
   if (full == 0) {
-    printf("Consumer BLOCKED (Buffer Empty)\n");
-    display();
+    printf("\nBuffer EMPTY! Consumer BLOCKED\n");
     return;
   }
 
-  down(&full);
-  down(&buffer_access);
+  sem_wait(&full);
+  sem_wait(&mutex);
 
-  item = buffer[out];
-  printf("Consumed: %d from position %d\n", item, out);
+  int item = buffer[out];
+  printf("\nConsumed: %d from position %d", item, out);
   out = (out + 1) % size;
 
-  up(&buffer_access);
-  up(&empty);
+  sem_signal(&mutex);
+  sem_signal(&empty);
 
-  display();
+  printf("\nBuffer status -> full=%d, empty=%d\n", full, empty);
 }
 
 int main() {
   int choice;
 
-  printf("Enter buffer size: ");
+  printf("Enter the size of the buffer: ");
   scanf("%d", &size);
 
-  buffer = (int *)malloc(size * sizeof(int));
   empty = size;
 
   while (1) {
-    printf("\n--- MENU ---\n");
-    printf("1. Schedule Producer\n");
-    printf("2. Schedule Consumer\n");
-    printf("3. Exit\n");
-    printf("Enter choice: ");
+    printf("\n1. Produce\n2. Consume\n3. Exit\n");
     scanf("%d", &choice);
 
     switch (choice) {
-    case 1:
-      producer();
+    case 1: {
+      int x;
+      printf("Enter item to produce: ");
+      scanf("%d", &x);
+      producer(x);
       break;
+    }
     case 2:
       consumer();
       break;
+
     case 3:
-      free(buffer);
       exit(0);
+
     default:
-      printf("Invalid choice\n");
+      printf("Invalid input\n");
     }
   }
-
-  return 0;
 }
